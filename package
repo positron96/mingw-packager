@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+
+
+import subprocess
+
+import sys
+import os
+from shutil import copyfile
+
+QT_LIB_DIR = os.getenv('QT_LIB_DIR', '.')
+
+
+def findFullPath(dllname):
+	if os.path.isfile( dllname ) :
+		return dllname
+	ff = os.path.join(QT_LIB_DIR, dllname)
+	if os.path.isfile( ff ) :
+		return ff
+	return dllname
+	
+
+def findDlls(filename):
+	if not os.path.isfile(filename):
+		return []
+	proc = subprocess.Popen('objdump -x "%s"' % filename, shell=True, stdout=subprocess.PIPE)
+	out = proc.stdout.readlines()
+	dlls = list( t.split(':')[1].strip() for t in out if t.find("DLL Name:")>0 )
+	fulldlls = list( findFullPath(f) for f in dlls )
+	return fulldlls
+	
+def copyDlls(dlls, dstdir):
+	for dll in dlls:
+		if os.path.isfile( dll ) :
+			bdll = os.path.basename(dll)
+			dst = os.path.join(dstdir, bdll)
+			print "Copying %s to %s" % (dll, dst)
+			copyfile(dll, dst)
+			
+
+def main(args):
+	dlls = findDlls(args[1])
+	i=0
+	while i < len(dlls) :		
+		f = dlls[i]		
+		if len(f)>0:
+			newdlls = findDlls( dlls[i] )
+			for d in newdlls:
+				if len(d)>0 and not d in dlls:
+					dlls.append(d)
+		i+=1		
+	
+	print dlls
+	dstdir = os.path.dirname(os.path.abspath(args[1]))
+	copyDlls(dlls, dstdir)
+	return 0
+
+if __name__ == '__main__':
+
+    sys.exit(main(sys.argv))
